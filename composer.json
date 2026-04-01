@@ -1,0 +1,11 @@
+{
+  "name": "asmbs/membersuite-geosearch",
+  "description": "Syncs MemberSuite members with lat/long for geolocation search.",
+  "type": "wordpress-plugin",
+  "require": {
+    "composer/installers": "^2.0"
+  },
+  "extra": {
+    "installer-name": "my-plugin"
+  }
+}
