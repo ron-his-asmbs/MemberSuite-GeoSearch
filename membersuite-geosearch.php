@@ -12,6 +12,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+require_once plugin_dir_path(__FILE__) . 'Provider.php';
 require_once plugin_dir_path(__FILE__) . 'settings.php';
 new MS_Plugin_Settings();
 
@@ -28,14 +29,12 @@ class MemberSuiteGeoSearch
 
 		add_action('wp', [$this, 'schedule_cron']);
 		add_action('sync_membersuite_members', [$this, 'sync_members']);
-		//add_action('admin_init', [$this, 'handle_sync']);
 		add_action('wp_ajax_ms_sync_batch', [$this, 'ajax_sync_batch']);
-
-		add_shortcode('member_geosearch', [$this, 'geo_search_shortcode']);
-
-		add_shortcode('member_search', [$this, 'member_search_shortcode']);
 		add_action('wp_ajax_ms_find_members', [$this, 'ajax_find_members']);
 		add_action('wp_ajax_nopriv_ms_find_members', [$this, 'ajax_find_members']); // allows public access
+
+		add_shortcode('member_geosearch', [$this, 'geo_search_shortcode']);
+		add_shortcode('member_search', [$this, 'member_search_shortcode']);
 	}
 
 	public function ajax_sync_batch()
@@ -71,8 +70,13 @@ class MemberSuiteGeoSearch
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         email VARCHAR(150),
+        city VARCHAR(100),
+        state VARCHAR(100),
+        country VARCHAR(100),
+        member_type VARCHAR(100),
         latitude DECIMAL(10,7),
         longitude DECIMAL(10,7),
+        surgery_types TEXT,
         last_updated DATETIME,
         PRIMARY KEY (id),
         UNIQUE KEY member_id (member_id)
@@ -88,39 +92,24 @@ class MemberSuiteGeoSearch
 		}
 	}
 
-	public function sync_members()
+	public function sync_members(): int
 	{
 		global $wpdb;
 		set_time_limit(0);
 		ignore_user_abort(true);
 
-		$token = $this->getMSToken();
-		$members = $this->executeSearchDirectoryIndividuals();
-		$count = 0;
+		// Clear cache so we get fresh data
+		delete_transient('ms_members_cache');
 
-		foreach ($members as $entry) {
-			$geo = $this->getMemberGeoData($entry['id'], $token);
+		$offset = 0;
+		$batch_size = 15;
 
-			$result = $wpdb->replace(
-				$this->table_name,
-				[
-					'member_id' => $entry['id'],
-					'first_name' => $entry['firstName'],
-					'last_name' => $entry['lastName'],
-					'email' => $geo['email'] ?? null,
-					'latitude' => $geo['latitude'] ?? null,
-					'longitude' => $geo['longitude'] ?? null,
-					'last_updated' => current_time('mysql'),
-				],
-				['%s', '%s', '%s', '%s', '%s', '%s', '%s']
-			);
+		do {
+			$result = $this->sync_members_batch($offset, $batch_size);
+			$offset += $batch_size;
+		} while (!$result['done']);
 
-			if ($result !== false) {
-				$count++;
-			}
-		}
-
-		return $count;
+		return $result['total'];
 	}
 
 	public function sync_members_batch(int $offset = 0, int $batch_size = 15): array
@@ -166,9 +155,14 @@ class MemberSuiteGeoSearch
 					'email' => $geo['email'] ?? null,
 					'latitude' => $geo['latitude'] ?? null,
 					'longitude' => $geo['longitude'] ?? null,
+					'city' => $geo['city'] ?? null,
+					'state' => $geo['state'] ?? null,
+					'country' => $geo['country'] ?? null,
+					'member_type' => $geo['member_type'] ?? null,
+					'surgery_types'=> $geo['surgery_types'] ?? null,
 					'last_updated' => current_time('mysql'),
 				],
-				['%s', '%s', '%s', '%s', '%s', '%s', '%s']
+				['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
 			);
 			$count++;
 		}
@@ -283,11 +277,16 @@ class MemberSuiteGeoSearch
 		}
 
 		$data = json_decode(wp_remote_retrieve_body($response), true);
-		// revise this to check prefered address > grab lat/long from that address
+		// unpack the individual endpoint response json, and package it for the sync function
 		return [
 			'latitude' => $data['practice_Address']['geocodeLat'] ?? null,
 			'longitude' => $data['practice_Address']['geocodeLong'] ?? null,
+			'city' => $data['practice_Address']['city'] ?? null,
+			'state' => $data['practice_Address']['state'] ?? null,
+			'country' => $data['practice_Address']['country'] ?? null,
 			'email' => $data['emailAddress'] ?? null,
+			'member_type' => $data['designation'] ?? null,
+			'surgery_types' => !empty($data['surgeryTypes__c']) ? json_encode($data['surgeryTypes__c']) : null,
 		];
 	}
 
