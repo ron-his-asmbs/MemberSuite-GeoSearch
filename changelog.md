@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-04-16
+### Fixed
+- Removed hard dependency on plugin-level vendor/autoload.php
+- Dependencies now handled by root project Composer autoloader
+
 ## [1.2.0] - 2026-04-16
 ### Added
 - `surgery_types` field synced from MemberSuite `surgeryTypes__c` array and stored as JSON
