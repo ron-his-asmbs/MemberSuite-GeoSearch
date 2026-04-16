@@ -1,0 +1,4 @@
+vendor/
+.env
+sync.log
+*.local.php
