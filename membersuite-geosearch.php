@@ -11,12 +11,15 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+// Dependencies are loaded by the root composer autoloader
+// Only load our own autoloader if running standalone
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+	require_once __DIR__ . '/vendor/autoload.php';
+}
 
 use MemberSuiteGeoSearch\Plugin;
 use MemberSuiteGeoSearch\Settings;
 
-// Boot the plugin
 add_action('plugins_loaded', function () {
 	new Plugin();
 	new Settings();
