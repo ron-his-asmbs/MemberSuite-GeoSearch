@@ -2,3 +2,4 @@ vendor/
 .env
 sync.log
 *.local.php
+sync.log
