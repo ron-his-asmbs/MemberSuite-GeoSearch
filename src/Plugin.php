@@ -226,7 +226,7 @@ class Plugin
 					'Content-Type' => 'application/json',
 				],
 				'body' => json_encode(['msql' => "SELECT ID, FirstName, LastName, Membership.ReceivesMemberBenefits, Practicing__c,
-                       Membership.Status.Name, designation FROM IndividualÏ
+                       Membership.Status.Name, designation FROM Individual
                        WHERE (Membership.ReceivesMemberBenefits = 1
                        AND Membership.Status.Name = 'active'
                        AND (Type = '$ms_surgeon' OR Type = '$ms_integrated_health'))
