@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-04-20
+### Added
+- Provider phone/address syncing
+
 ## [1.2.3] - 2026-04-20
 ### Fixed
 - Encoding issue in MSQL query string causing 500 error from MemberSuite API

@@ -96,6 +96,19 @@ class Provider
 
         return $cache[$this->row->member_id];
     }
+
+    public function getPracticePhone(): string
+    {
+        return $this->row->practice_phone ?? '';
+    }
+
+    public function getAddresses(): array
+    {
+        if (empty($this->row->city) && empty($this->row->state)) {
+            return [];
+        }
+        return [new ProviderAddress((array) $this->row)];
+    }
 }
 
 class ProviderAddress
@@ -107,6 +120,16 @@ class ProviderAddress
         $this->data = $data;
     }
 
+    public function getLine1(): string
+    {
+        return $this->data['practice_line1'] ?? '';
+    }
+
+    public function getLine2(): string
+    {
+        return $this->data['practice_line2'] ?? '';
+    }
+
     public function getCity(): string
     {
         return $this->data['city'] ?? '';
@@ -115,6 +138,11 @@ class ProviderAddress
     public function getState(): string
     {
         return $this->data['state'] ?? '';
+    }
+
+    public function getZip(): string
+    {
+        return $this->data['practice_zip'] ?? '';
     }
 
     public function getCountry(): string
