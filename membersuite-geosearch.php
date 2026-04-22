@@ -3,7 +3,7 @@
 /**
  * Plugin Name: MemberSuite GeoSearch
  * Description: Syncs MemberSuite members with lat/long for geolocation search.
- * Version: 1.2.4
+ * Version: 1.3.0
  * Author: ASMBS
  */
 

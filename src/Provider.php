@@ -41,14 +41,6 @@ class Provider
         return json_decode($this->row->surgery_types, true) ?? [];
     }
 
-    public function getAddresses(): array
-    {
-        if (empty($this->row->city) && empty($this->row->state)) {
-            return [];
-        }
-        return [new ProviderAddress((array) $this->row)];
-    }
-
     public function getDisplayName(): string
     {
         $parts = array_filter([
