@@ -110,7 +110,7 @@ class Provider
 		
 		return '';
 	}
-
+}
 class ProviderAddress
 {
     private array $data;
