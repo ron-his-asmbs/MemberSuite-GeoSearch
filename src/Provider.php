@@ -101,6 +101,17 @@ class Provider
         }
         return [new ProviderAddress((array) $this->row)];
     }
+
+    public function getPhotoUrl(): string
+{
+    if (empty($this->row->image_guid)) {
+        return '';
+    }
+
+    $associationId  = $_ENV['MS_ASSOCIATION_ID']  ?? '';
+    $partitionKey   = $_ENV['MS_PARTITION_KEY']   ?? '';
+
+    return "https://images.membersuite.com/{$_ENV['MS_ASSOCIATION_ID']}/{$_ENV['MS_PARTITION_KEY']}/{$this->row->image_guid}";}
 }
 
 class ProviderAddress
