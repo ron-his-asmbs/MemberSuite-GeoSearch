@@ -71,6 +71,7 @@ class Plugin
         practice_zip VARCHAR(20),
         practice_phone VARCHAR(50),
         image_guid VARCHAR(50),
+        member_category VARCHAR(50),
         PRIMARY KEY (id),
         UNIQUE KEY member_id (member_id)
     ) $charset_collate;";
@@ -137,30 +138,41 @@ class Plugin
         $count = 0;
 
         foreach ($batch as $entry) {
-            $geo = $this->getMemberGeoData($entry['id'], $token);
+            $geo      = $this->getMemberGeoData($entry['id'], $token);
+            $typeName = $entry['membership.Type.name'] ?? '';
+            $category = match(true) {
+                str_contains($typeName, 'Surgeon') || str_contains($typeName, 'Physician') => 'surgeon',
+                str_contains($typeName, 'Integrated Health')                               => 'integrated_health',
+                str_contains($typeName, 'Candidate')                                       => 'candidate',
+                str_contains($typeName, 'International')                                   => 'international',
+                str_contains($typeName, 'Corporate Council')                               => 'corporate_council',
+                str_contains($typeName, 'Friend')                                          => 'friend',
+                default                                                                    => 'member',
+            };
 
             $wpdb->replace(
                 $this->table_name,
                 [
-                    'member_id'      => $entry['id'],
-                    'first_name'     => $entry['firstName'],
-                    'last_name'      => $entry['lastName'],
-                    'image_guid'     => $entry['image']         ?? null,
-                    'email'          => $geo['email']           ?? null,
-                    'latitude'       => $geo['latitude']        ?? null,
-                    'longitude'      => $geo['longitude']       ?? null,
-                    'city'           => $geo['city']            ?? null,
-                    'state'          => $geo['state']           ?? null,
-                    'country'        => $geo['country']         ?? null,
-                    'practice_line1' => $geo['practice_line1']  ?? null,
-                    'practice_line2' => $geo['practice_line2']  ?? null,
-                    'practice_zip'   => $geo['practice_zip']    ?? null,
-                    'practice_phone' => $geo['practice_phone']  ?? null,
-                    'member_type'    => $entry['designation']   ?? null,
-                    'surgery_types'  => $geo['surgery_types']   ?? null,
-                    'last_updated'   => current_time('mysql'),
+                    'member_id'       => $entry['id'],
+                    'first_name'      => $entry['firstName'],
+                    'last_name'       => $entry['lastName'],
+                    'image_guid'      => $entry['image']        ?? null,
+                    'email'           => $geo['email']          ?? null,
+                    'latitude'        => $geo['latitude']       ?? null,
+                    'longitude'       => $geo['longitude']      ?? null,
+                    'city'            => $geo['city']           ?? null,
+                    'state'           => $geo['state']          ?? null,
+                    'country'         => $geo['country']        ?? null,
+                    'practice_line1'  => $geo['practice_line1'] ?? null,
+                    'practice_line2'  => $geo['practice_line2'] ?? null,
+                    'practice_zip'    => $geo['practice_zip']   ?? null,
+                    'practice_phone'  => $geo['practice_phone'] ?? null,
+                    'member_type'     => $entry['designation']  ?? null,
+                    'surgery_types'   => $geo['surgery_types']  ?? null,
+                    'member_category' => $category,
+                    'last_updated'    => current_time('mysql'),
                 ],
-                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
             );
             $count++;
         }
@@ -236,7 +248,7 @@ class Plugin
                     'Content-Type' => 'application/json',
                 ],
                 'body' => json_encode(['msql' => "SELECT ID, FirstName, LastName, Membership.ReceivesMemberBenefits, Practicing__c,
-                       Membership.Status.Name, designation, image FROM Individual
+                       Membership.Status.Name, Membership.Type.name, designation, image FROM Individual
                        WHERE (Membership.ReceivesMemberBenefits = 1
                        AND Membership.Status.Name = 'active'
                        AND (Type = '$ms_surgeon' OR Type = '$ms_integrated_health'))

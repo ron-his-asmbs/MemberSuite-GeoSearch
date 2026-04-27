@@ -104,12 +104,25 @@ class Provider
 
     public function getPhotoUrl(): string
     {
-		if (!empty($this->row->image_guid)) {
-			return "https://images.membersuite.com/{$_ENV['MS_ASSOCIATION_ID']}/{$_ENV['MS_PARTITION_KEY']}/{$this->row->image_guid}";
-		}
-		
-		return '';
-	}
+        if (!empty($this->row->image_guid)) {
+            return "https://images.membersuite.com/{$_ENV['MS_ASSOCIATION_ID']}/{$_ENV['MS_PARTITION_KEY']}/{$this->row->image_guid}";
+        }
+
+        return '';
+    }
+    public function getMemberTypeLabel(): string
+    {
+        return match($this->row->member_category ?? '') {
+            'surgeon'          => 'Practicing Surgeon',
+            'integrated_health' => 'Integrated Health',
+            default            => 'Member',
+        };
+    }
+
+    public function isIntegratedHealth(): bool
+    {
+        return ($this->row->member_category ?? '') === 'integrated_health';
+    }
 }
 class ProviderAddress
 {

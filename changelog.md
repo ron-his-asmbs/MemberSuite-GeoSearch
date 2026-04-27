@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-04-27
+### Added
+- Revised member type displaying
+- Added practice_address information
+
 ## [1.3.2] - 2026-04-23
 ### Added
 - Added profile picture support
