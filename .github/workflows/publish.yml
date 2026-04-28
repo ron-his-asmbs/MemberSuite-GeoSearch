@@ -16,4 +16,4 @@ jobs:
           host: ${{ secrets.SATIS_HOST }}
           username: ${{ secrets.SATIS_USER }}
           key: ${{ secrets.SATIS_SSH_KEY }}
-          script: ~/vhost/asmbs-packagist/rebuild.sh "github-actions" "membersuite-geosearch"
+          script: ~/bin/rebuild "github-actions" "membersuite-geosearch"
