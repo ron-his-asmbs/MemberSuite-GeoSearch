@@ -25,7 +25,11 @@ class Settings
     public function register_settings()
     {
         register_setting('ms_plugin_group', 'MS_SURGEON');
+        register_setting('ms_plugin_group', 'MS_SURGEON_RENEWAL');
         register_setting('ms_plugin_group', 'MS_INTEGRATED_HEALTH');
+        register_setting('ms_plugin_group', 'MS_INTEGRATED_HEALTH_RENEWAL');
+        register_setting('ms_plugin_group', 'MS_INTERNATIONAL');
+        register_setting('ms_plugin_group', 'MS_INTERNATIONAL_RENEWAL');
     }
 
     public function render_page()
@@ -38,22 +42,56 @@ class Settings
                     Integrated Health members.<br />
                     If the GUIDs for these member types change on Membersuite, they will have to be updated here.
                 </p>
-                <table class="form-table">
-                    <tr>
-                        <th>MS_SURGEON</th>
-                        <td>
-                            <input type="text" name="MS_SURGEON" value="<?php echo esc_attr(get_option('MS_SURGEON')); ?>"
-                                class="regular-text" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <th>MS_INTEGRATED_HEALTH</th>
-                        <td>
-                            <input type="text" name="MS_INTEGRATED_HEALTH"
-                                value="<?php echo esc_attr(get_option('MS_INTEGRATED_HEALTH')); ?>" class="regular-text" />
-                        </td>
-                    </tr>
-                </table>
+				<table class="form-table">
+					<tr>
+						<th>MS_SURGEON</th>
+						<td>
+							<input type="text" name="MS_SURGEON"
+				                   value="<?php echo esc_attr(get_option('MS_SURGEON')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th>MS_SURGEON_RENEWAL</th>
+						<td>
+							<input type="text" name="MS_SURGEON_RENEWAL"
+				                   value="<?php echo esc_attr(get_option('MS_SURGEON_RENEWAL')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th>MS_INTEGRATED_HEALTH</th>
+						<td>
+							<input type="text" name="MS_INTEGRATED_HEALTH"
+				                   value="<?php echo esc_attr(get_option('MS_INTEGRATED_HEALTH')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th>MS_INTEGRATED_HEALTH_RENEWAL</th>
+						<td>
+							<input type="text" name="MS_INTEGRATED_HEALTH_RENEWAL"
+				                   value="<?php echo esc_attr(get_option('MS_INTEGRATED_HEALTH_RENEWAL')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th>MS_INTERNATIONAL</th>
+						<td>
+							<input type="text" name="MS_INTERNATIONAL"
+				                   value="<?php echo esc_attr(get_option('MS_INTERNATIONAL')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+					<tr>
+						<th>MS_INTERNATIONAL_RENEWAL</th>
+						<td>
+							<input type="text" name="MS_INTERNATIONAL_RENEWAL"
+				                   value="<?php echo esc_attr(get_option('MS_INTERNATIONAL_RENEWAL')); ?>"
+				                   class="regular-text" />
+						</td>
+					</tr>
+				</table>
                 <?php submit_button(); ?>
             </form>
 
