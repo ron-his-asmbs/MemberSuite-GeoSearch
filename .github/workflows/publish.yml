@@ -1,0 +1,19 @@
+name: Publish to Satis
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Satis rebuild
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SATIS_HOST }}
+          username: ${{ secrets.SATIS_USER }}
+          key: ${{ secrets.SATIS_SSH_KEY }}
+          script: ~/vhost/asmbs-packagist/rebuild.sh "github-actions" "membersuite-geosearch"
