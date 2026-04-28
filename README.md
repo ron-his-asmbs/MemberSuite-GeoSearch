@@ -21,5 +21,12 @@ A WordPress plugin that syncs member data from the MemberSuite API and provides 
 - MemberSuite account with API access
 - Google Maps API key with Maps JavaScript API and Geocoding API enabled
 
+## Updating
+
+When creating a new version of this plugin, please be sure to update: 
+1. The CHANGELOG.md file
+2. The version number in membersuite-geosearch.php (for wordpress GUI)
+3. Tag release on github accordingly (which will trigger packagist rebuild)
+
 ## Database table information
 <img width="281" height="272" alt="image" src="https://github.com/user-attachments/assets/7c16623d-13bc-44a8-a996-7274129bee84" />
