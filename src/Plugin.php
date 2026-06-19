@@ -138,41 +138,44 @@ class Plugin
         $count = 0;
 
         foreach ($batch as $entry) {
-            $geo = $this->getMemberGeoData($entry['id'], $token);
+            $geo      = $this->getMemberGeoData($entry['id'], $token);
             $typeName = $entry['membership.Type.name'] ?? '';
-            $category = match (true) {
+            $category = match(true) {
                 str_contains($typeName, 'Surgeon') || str_contains($typeName, 'Physician') => 'surgeon',
                 str_contains($typeName, 'Integrated Health') => 'integrated_health',
-                str_contains($typeName, 'Candidate') => 'candidate',
-                str_contains($typeName, 'International') => 'international',
+                str_contains($typeName, 'Candidate')         => 'candidate',
+                str_contains($typeName, 'International')     => 'international',
                 str_contains($typeName, 'Corporate Council') => 'corporate_council',
-                str_contains($typeName, 'Friend') => 'friend',
-                default => 'member',
+                str_contains($typeName, 'Friend')            => 'friend',
+                default                                      => 'member',
             };
+
+            $isFDP = !empty($entry['certificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name']) ? 1 : 0;
 
             $wpdb->replace(
                 $this->table_name,
                 [
-                    'member_id' => $entry['id'],
-                    'first_name' => $entry['firstName'],
-                    'last_name' => $entry['lastName'],
-                    'image_guid' => $entry['image'] ?? null,
-                    'email' => $geo['email'] ?? null,
-                    'latitude' => $geo['latitude'] ?? null,
-                    'longitude' => $geo['longitude'] ?? null,
-                    'city' => $geo['city'] ?? null,
-                    'state' => $geo['state'] ?? null,
-                    'country' => $geo['country'] ?? null,
-                    'practice_line1' => $geo['practice_line1'] ?? null,
-                    'practice_line2' => $geo['practice_line2'] ?? null,
-                    'practice_zip' => $geo['practice_zip'] ?? null,
-                    'practice_phone' => $geo['practice_phone'] ?? null,
-                    'member_type' => $entry['designation'] ?? null,
-                    'surgery_types' => $geo['surgery_types'] ?? null,
-                    'member_category' => $category,
-                    'last_updated' => current_time('mysql'),
+                    'member_id'        => $entry['id'],
+                    'first_name'       => $entry['firstName'],
+                    'last_name'        => $entry['lastName'],
+                    'image_guid'       => $entry['image']        ?? null,
+                    'email'            => $geo['email']           ?? null,
+                    'latitude'         => $geo['latitude']        ?? null,
+                    'longitude'        => $geo['longitude']       ?? null,
+                    'city'             => $geo['city']            ?? null,
+                    'state'            => $geo['state']            ?? null,
+                    'country'          => $geo['country']          ?? null,
+                    'practice_line1'   => $geo['practice_line1']  ?? null,
+                    'practice_line2'   => $geo['practice_line2']  ?? null,
+                    'practice_zip'     => $geo['practice_zip']    ?? null,
+                    'practice_phone'   => $geo['practice_phone']  ?? null,
+                    'member_type'      => $entry['designation']   ?? null,
+                    'surgery_types'    => $geo['surgery_types']   ?? null,
+                    'member_category'  => $category,
+                    'isFDP'            => $isFDP,
+                    'last_updated'     => current_time('mysql'),
                 ],
-                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s']
             );
             $count++;
         }
@@ -233,13 +236,13 @@ class Plugin
     private function executeSearchDirectoryIndividuals(): array
     {
         try {
-            $ms_surgeon = get_option('MS_SURGEON');
-            $ms_surgeon_renewal = get_option('MS_SURGEON_RENEWAL');
-            $ms_integrated_health = get_option('MS_INTEGRATED_HEALTH');
+            $ms_surgeon                   = get_option('MS_SURGEON');
+            $ms_surgeon_renewal           = get_option('MS_SURGEON_RENEWAL');
+            $ms_integrated_health         = get_option('MS_INTEGRATED_HEALTH');
             $ms_integrated_health_renewal = get_option('MS_INTEGRATED_HEALTH_RENEWAL');
-            $ms_international = get_option('MS_INTERNATIONAL');
-            $ms_international_renewal = get_option('MS_INTERNATIONAL_RENEWAL');
-            $token = $this->getMSToken();
+            $ms_international             = get_option('MS_INTERNATIONAL');
+            $ms_international_renewal     = get_option('MS_INTERNATIONAL_RENEWAL');
+            $token                        = $this->getMSToken();
 
             $this->log('executeSearch: token ' . (empty($token) ? 'EMPTY' : 'ok'));
             $this->log('executeSearch: MS_SURGEON = ' . $ms_surgeon);
@@ -250,26 +253,28 @@ class Plugin
             $this->log('executeSearch: MS_INTERNATIONAL_RENEWAL = ' . $ms_international_renewal);
 
             $msql = "SELECT ID, FirstName, LastName, Membership.ReceivesMemberBenefits, Practicing__c,
-                 Membership.Status.Name, Membership.Type.name, designation, image FROM Individual
-                 WHERE (Membership.ReceivesMemberBenefits = 1
-                 AND Membership.Status.Name = 'active'
-                 AND (
-                     Membership.Type = '$ms_surgeon'
-                     OR Membership.Type = '$ms_surgeon_renewal'
-                     OR Membership.Type = '$ms_integrated_health'
-                     OR Membership.Type = '$ms_integrated_health_renewal'
-                     OR Membership.Type = '$ms_international'
-                     OR Membership.Type = '$ms_international_renewal'
-                 ))
-                 ORDER BY LastName ASC";
+                    Membership.Status.Name, Membership.Type.name, designation, image,
+                    CertificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name
+                    FROM Individual
+                    WHERE (Membership.ReceivesMemberBenefits = 1
+                    AND (Membership.Status.Name = 'active' OR Membership.Status.Name = 'Senior')
+                    AND (
+                        Type = '$ms_surgeon'
+                        OR Type = '$ms_surgeon_renewal'
+                        OR Type = '$ms_integrated_health'
+                        OR Type = '$ms_integrated_health_renewal'
+                        OR Type = '$ms_international'
+                        OR Type = '$ms_international_renewal'
+                    ))
+                    ORDER BY LastName ASC";
 
             $response = wp_remote_post('https://rest.membersuite.com/platform/v2/dataSuite/executeSearch', [
                 'headers' => [
-                    'Accept' => 'application/json',
+                    'Accept'        => 'application/json',
                     'Authorization' => 'Bearer ' . $token,
-                    'Content-Type' => 'application/json',
+                    'Content-Type'  => 'application/json',
                 ],
-                'body' => json_encode(['msql' => $msql]),
+                'body'    => json_encode(['msql' => $msql]),
                 'timeout' => 30,
             ]);
 
@@ -278,13 +283,13 @@ class Plugin
                 return [];
             }
 
-            $status = wp_remote_retrieve_response_code($response);
-            $body = wp_remote_retrieve_body($response);
+            $status  = wp_remote_retrieve_response_code($response);
+            $body    = wp_remote_retrieve_body($response);
 
             $this->log('executeSearch status: ' . $status);
             $this->log('executeSearch body: ' . substr($body, 0, 200));
 
-            $data = json_decode($body, true);
+            $data    = json_decode($body, true);
             $members = $data['data'] ?? [];
 
             $this->log('executeSearch fetched: ' . count($members) . ' members');
