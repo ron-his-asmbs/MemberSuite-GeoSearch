@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [To-do]
 - Add search box to settings page to look up one member and potentially update their information
+- Add search results badge for FDP surgeons (like Jaime Ponce)
 
 ## [Unreleased]
 
