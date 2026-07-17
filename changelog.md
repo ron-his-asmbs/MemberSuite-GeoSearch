@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-07-17
+### Changed
+- Added practicing__c to msql query + database table, used for filtering on the profile list. 
+
 ## [1.4.0] - 2026-07-17
 ### Added
 - `local_id` column on `gent_member_geodata`, populated during sync, enabling profile link generation without a WordPress user account or CMSPlugin.

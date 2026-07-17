@@ -59,6 +59,7 @@ class Plugin
         id BIGINT NOT NULL AUTO_INCREMENT,
         member_id VARCHAR(50) NOT NULL,
         local_id BIGINT NULL,
+        practicing TINYINT(1) NULL,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         email VARCHAR(150),
@@ -220,6 +221,7 @@ class Plugin
         $row = [
             'member_id'        => $entry['id'],
             'local_id'         => $entry['localID']       ?? null,
+            'practicing'       => isset( $entry['practicing__c'] ) ? (int) (bool) $entry['practicing__c'] : null,
             'first_name'       => $entry['firstName'],
             'last_name'        => $entry['lastName'],
             'image_guid'       => $entry['image']        ?? null,
@@ -243,7 +245,7 @@ class Plugin
         $wpdb->replace(
             $this->table_name,
             $row,
-            ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s']
+            ['%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s']
         );
 
         return ['status' => 'synced', 'row' => $row];
@@ -418,7 +420,7 @@ class Plugin
 
         $msql = "SELECT ID, LocalID, FirstName, LastName, designation, image,
                 CertificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name,
-                Membership.Type.name
+                Membership.Type.name, Practicing__c
                 FROM Individual
                 WHERE (Id = '{$safeGuid}')";
 
