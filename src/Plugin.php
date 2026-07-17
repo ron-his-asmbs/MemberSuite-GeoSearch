@@ -3,6 +3,7 @@
 namespace MemberSuiteGeoSearch;
 
 use GuzzleHttp\Client;
+use Hashids\Hashids;
 
 class Plugin
 {
@@ -20,6 +21,8 @@ class Plugin
         add_action('wp_ajax_ms_sync_batch', [$this, 'ajax_sync_batch']);
         add_action('wp_ajax_ms_find_members', [$this, 'ajax_find_members']);
         add_action('wp_ajax_nopriv_ms_find_members', [$this, 'ajax_find_members']); // allows public access
+        add_action('wp_ajax_ms_lookup_member', [$this, 'ajax_lookup_member']);
+        add_action('wp_ajax_ms_sync_single_member', [$this, 'ajax_sync_single_member']);
 
         add_shortcode('member_geosearch', [$this, 'geo_search_shortcode']);
         add_shortcode('member_search', [$this, 'member_search_shortcode']);
@@ -55,6 +58,7 @@ class Plugin
         $sql = "CREATE TABLE {$this->table_name} (
         id BIGINT NOT NULL AUTO_INCREMENT,
         member_id VARCHAR(50) NOT NULL,
+        local_id BIGINT NULL,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
         email VARCHAR(150),
@@ -138,46 +142,11 @@ class Plugin
         $count = 0;
 
         foreach ($batch as $entry) {
-            $geo      = $this->getMemberGeoData($entry['id'], $token);
-            $typeName = $entry['membership.Type.name'] ?? '';
-            $category = match(true) {
-                str_contains($typeName, 'Surgeon') || str_contains($typeName, 'Physician') => 'surgeon',
-                str_contains($typeName, 'Integrated Health') => 'integrated_health',
-                str_contains($typeName, 'Candidate')         => 'candidate',
-                str_contains($typeName, 'International')     => 'international',
-                str_contains($typeName, 'Corporate Council') => 'corporate_council',
-                str_contains($typeName, 'Friend')            => 'friend',
-                default                                      => 'member',
-            };
-
-            $isFDP = !empty($entry['certificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name']) ? 1 : 0;
-
-            $wpdb->replace(
-                $this->table_name,
-                [
-                    'member_id'        => $entry['id'],
-                    'first_name'       => $entry['firstName'],
-                    'last_name'        => $entry['lastName'],
-                    'image_guid'       => $entry['image']        ?? null,
-                    'email'            => $geo['email']           ?? null,
-                    'latitude'         => $geo['latitude']        ?? null,
-                    'longitude'        => $geo['longitude']       ?? null,
-                    'city'             => $geo['city']            ?? null,
-                    'state'            => $geo['state']            ?? null,
-                    'country'          => $geo['country']          ?? null,
-                    'practice_line1'   => $geo['practice_line1']  ?? null,
-                    'practice_line2'   => $geo['practice_line2']  ?? null,
-                    'practice_zip'     => $geo['practice_zip']    ?? null,
-                    'practice_phone'   => $geo['practice_phone']  ?? null,
-                    'member_type'      => $entry['designation']   ?? null,
-                    'surgery_types'    => $geo['surgery_types']   ?? null,
-                    'member_category'  => $category,
-                    'isFDP'            => $isFDP,
-                    'last_updated'     => current_time('mysql'),
-                ],
-                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s']
-            );
-            $count++;
+            $geo = $this->getMemberGeoData($entry['id'], $token);
+            $result = $this->upsert_member_entry($entry, $geo);
+            if ($result['status'] === 'synced') {
+                $count++;
+            }
         }
 
         $processed = $offset + $count;
@@ -193,6 +162,91 @@ class Plugin
             'total' => count($members),
             'done' => $done,
         ];
+    }
+
+    /**
+     * Shared upsert logic used by both the batch sync loop and the
+     * single-member re-sync from the admin lookup tool. Applies the
+     * same test-account filter and category classification either way,
+     * so a manual single-person sync can never diverge in behavior
+     * from what the batch sync would have done for that same person.
+     *
+     * @param array $entry Row from the MSQL search (Id, LocalID, FirstName,
+     *                      LastName, membership.Type.name, designation,
+     *                      image, certificationProgram...Name)
+     * @param array $geo   Result of getMemberGeoData() for this same person
+     *
+     * @return array{status: string, row: ?array} status is 'synced' or
+     *               'skipped_test'; row is the data written (or would
+     *               have been written) to the table, null if skipped.
+     */
+    private function upsert_member_entry(array $entry, array $geo): array
+    {
+        global $wpdb;
+
+        $typeName = $entry['membership.Type.name'] ?? '';
+
+        // Skip test/internal accounts — these pass the membership
+        // status/type filters in the MSQL query (they're marked as
+        // active members receiving benefits) but aren't real
+        // providers. NOT filtering by @asmbs.org/@asmbs.com email
+        // domain — real members (e.g. the CEO) legitimately use
+        // ASMBS addresses. Confirmed patterns instead: a literal
+        // "(Do Not Remove)" last name, and plus-addressed emails
+        // (e.g. "james+mdsso@asmbs.org") — a common convention for
+        // disposable test accounts that a real provider wouldn't use.
+        $email    = $geo['email'] ?? '';
+        $lastName = $entry['lastName'] ?? '';
+        $isTestAccount = $lastName === '(Do Not Remove)'
+            || str_contains($email, '+');
+
+        if ($isTestAccount) {
+            $this->log('ms_sync: skipping test/internal account ' . $entry['id'] . ' (' . $email . ')');
+            return ['status' => 'skipped_test', 'row' => null];
+        }
+
+        $category = match(true) {
+            str_contains($typeName, 'Surgeon') || str_contains($typeName, 'Physician') => 'surgeon',
+            str_contains($typeName, 'Integrated Health') => 'integrated_health',
+            str_contains($typeName, 'Candidate')         => 'candidate',
+            str_contains($typeName, 'International')     => 'international',
+            str_contains($typeName, 'Corporate Council') => 'corporate_council',
+            str_contains($typeName, 'Friend')            => 'friend',
+            default                                      => 'member',
+        };
+
+        $isFDP = !empty($entry['certificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name']) ? 1 : 0;
+
+        $row = [
+            'member_id'        => $entry['id'],
+            'local_id'         => $entry['localID']       ?? null,
+            'first_name'       => $entry['firstName'],
+            'last_name'        => $entry['lastName'],
+            'image_guid'       => $entry['image']        ?? null,
+            'email'            => $geo['email']           ?? null,
+            'latitude'         => $geo['latitude']        ?? null,
+            'longitude'        => $geo['longitude']       ?? null,
+            'city'             => $geo['city']            ?? null,
+            'state'            => $geo['state']            ?? null,
+            'country'          => $geo['country']          ?? null,
+            'practice_line1'   => $geo['practice_line1']  ?? null,
+            'practice_line2'   => $geo['practice_line2']  ?? null,
+            'practice_zip'     => $geo['practice_zip']    ?? null,
+            'practice_phone'   => $geo['practice_phone']  ?? null,
+            'member_type'      => $entry['designation']   ?? null,
+            'surgery_types'    => $geo['surgery_types']   ?? null,
+            'member_category'  => $category,
+            'isFDP'            => $isFDP,
+            'last_updated'     => current_time('mysql'),
+        ];
+
+        $wpdb->replace(
+            $this->table_name,
+            $row,
+            ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s']
+        );
+
+        return ['status' => 'synced', 'row' => $row];
     }
 
     private function get_members_near($lat, $lng, $radius_km = 10)
@@ -252,7 +306,7 @@ class Plugin
             $this->log('executeSearch: MS_INTERNATIONAL = ' . $ms_international);
             $this->log('executeSearch: MS_INTERNATIONAL_RENEWAL = ' . $ms_international_renewal);
 
-            $msql = "SELECT ID, FirstName, LastName, Membership.ReceivesMemberBenefits, Practicing__c,
+            $msql = "SELECT ID, LocalID, FirstName, LastName, Membership.ReceivesMemberBenefits, Practicing__c,
                     Membership.Status.Name, Membership.Type.name, designation, image,
                     CertificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name
                     FROM Individual
@@ -344,6 +398,122 @@ class Plugin
         file_put_contents($log_file, "[{$timestamp}] {$message}" . PHP_EOL, FILE_APPEND);
     }
 
+    /**
+     * Fetches the MSQL search fields for exactly one individual by GUID —
+     * same fields as executeSearchDirectoryIndividuals(), but scoped to a
+     * single Id and without the membership-type/status filtering, since
+     * the admin doing a manual lookup may want to check someone regardless
+     * of whether they currently pass those filters (e.g. to see why they
+     * aren't showing up in the directory).
+     */
+    private function fetchSingleIndividualEntry(string $guid, string $token): ?array
+    {
+        // GUIDs are hex + dashes only — strip anything else before
+        // interpolating into the MSQL string.
+        $safeGuid = preg_replace('/[^a-fA-F0-9-]/', '', $guid);
+
+        if (empty($safeGuid)) {
+            return null;
+        }
+
+        $msql = "SELECT ID, LocalID, FirstName, LastName, designation, image,
+                CertificationProgram_YlSIBd8Ad82SagtI9obJ7Q.Name,
+                Membership.Type.name
+                FROM Individual
+                WHERE (Id = '{$safeGuid}')";
+
+        $response = wp_remote_post('https://rest.membersuite.com/platform/v2/dataSuite/executeSearch', [
+            'headers' => [
+                'Accept'        => 'application/json',
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type'  => 'application/json',
+            ],
+            'body'    => json_encode(['msql' => $msql]),
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            $this->log('fetchSingleIndividualEntry wp_error: ' . $response->get_error_message());
+            return null;
+        }
+
+        $data = json_decode(wp_remote_retrieve_body($response), true);
+        $rows = $data['data'] ?? [];
+
+        return $rows[0] ?? null;
+    }
+
+    /**
+     * AJAX: looks up a member by GUID in the LOCAL table only — no
+     * MemberSuite API call. Used to show current cached fields before
+     * deciding whether to trigger a re-sync.
+     */
+    public function ajax_lookup_member()
+    {
+        check_ajax_referer('ms_lookup_member', 'nonce');
+
+        global $wpdb;
+
+        $guid = sanitize_text_field($_POST['guid'] ?? '');
+        $guid = preg_replace('/[^a-fA-F0-9-]/', '', $guid);
+
+        if (empty($guid)) {
+            wp_send_json_error(['message' => 'Please enter a MemberSuite GUID.']);
+        }
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare("SELECT * FROM {$this->table_name} WHERE member_id = %s", $guid),
+            ARRAY_A
+        );
+
+        if (!$row) {
+            wp_send_json_error(['message' => 'No local record found for that GUID. They may not have synced yet, or may have been filtered out (e.g. as a test account).']);
+        }
+
+        wp_send_json_success(['row' => $row]);
+    }
+
+    /**
+     * AJAX: re-fetches exactly one person from MemberSuite and upserts
+     * them into the local table via the same logic the batch sync uses
+     * (upsert_member_entry) — so a manual sync can never produce a
+     * different result than what the next scheduled batch sync would.
+     */
+    public function ajax_sync_single_member()
+    {
+        check_ajax_referer('ms_sync_single_member', 'nonce');
+
+        $guid = sanitize_text_field($_POST['guid'] ?? '');
+        $guid = preg_replace('/[^a-fA-F0-9-]/', '', $guid);
+
+        if (empty($guid)) {
+            wp_send_json_error(['message' => 'Please enter a MemberSuite GUID.']);
+        }
+
+        $token = $this->getMSToken();
+
+        $entry = $this->fetchSingleIndividualEntry($guid, $token);
+        if (!$entry) {
+            wp_send_json_error(['message' => 'MemberSuite has no individual with that GUID.']);
+        }
+
+        $geo = $this->getMemberGeoData($guid, $token);
+        $result = $this->upsert_member_entry($entry, $geo);
+
+        if ($result['status'] === 'skipped_test') {
+            wp_send_json_success([
+                'status'  => 'skipped_test',
+                'message' => 'This record matched the test-account filter (last name "(Do Not Remove)" or a "+" in their email) and was NOT synced.',
+            ]);
+        }
+
+        wp_send_json_success([
+            'status'  => 'synced',
+            'message' => 'Synced successfully.',
+            'row'     => $result['row'],
+        ]);
+    }
+
     public function ajax_find_members()
     {
         check_ajax_referer('ms_find_members', 'nonce');
@@ -357,9 +527,24 @@ class Plugin
 
         $members = $this->get_members_near($lat, $lng, $radius_km);
 
-        // Convert distance from km to miles for display
+        // Same Hashids salt as MemberPhotoManager and member-profile.php,
+        // so these hashes decode correctly on the profile page.
+        $hashids = new Hashids('obesity');
+
+        // Convert distance from km to miles for display, and attach a
+        // profile link for each member.
         foreach ($members as &$member) {
             $member->distance = round($member->distance * 0.621371, 1);
+
+            if (!empty($member->local_id)) {
+                $slug = sanitize_title($member->first_name . ' ' . $member->last_name)
+                    . '-' . $hashids->encode((int) $member->local_id);
+                $member->profile_url = home_url('/provider/' . $slug);
+            } else {
+                // No local_id yet — this row hasn't been through a sync
+                // since the local_id column was added.
+                $member->profile_url = null;
+            }
         }
 
         wp_send_json_success(['members' => $members]);
@@ -523,8 +708,11 @@ class Plugin
 									}
 
 									var rowBg = (i % 2 === 0) ? '#fff' : '#f9f9f9';
+									var nameCell = member.profile_url
+										? '<a href="' + member.profile_url + '">' + member.first_name + ' ' + member.last_name + '</a>'
+										: member.first_name + ' ' + member.last_name;
 									resultsHtml += '<tr style="background:' + rowBg + ';">';
-									resultsHtml += '<td style="padding:8px;">' + member.first_name + ' ' + member.last_name + '</td>';
+									resultsHtml += '<td style="padding:8px;">' + nameCell + '</td>';
 									resultsHtml += '<td style="padding:8px;">' + (member.designation || '') + '</td>';
 									resultsHtml += '<td style="padding:8px;">' + member.distance + ' mi</td>';
 									resultsHtml += '</tr>';

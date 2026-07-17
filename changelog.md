@@ -6,10 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [To-do]
-- Add search box to settings page to look up one member and potentially update their information
 - Add search results badge for FDP surgeons (like Jaime Ponce)
 
 ## [Unreleased]
+
+## [1.4.0] - 2026-07-17
+### Added
+- `local_id` column on `gent_member_geodata`, populated during sync, enabling profile link generation without a WordPress user account or CMSPlugin.
+- `Provider::getProfileLink()` now builds profile URLs directly from `local_id` via Hashids (salt `'obesity'`), matching the URL scheme the provider profile page decodes.
+- Profile links wired into `[member_search]` shortcode results (`ajax_find_members()` now attaches `profile_url` per member).
+- Test/internal account filtering during sync: skips records with last name `(Do Not Remove)` or a `+` in their email address, with skipped accounts logged.
+- Admin tool on the MS Geosearch settings page: look up a member by MemberSuite GUID (local data only), or trigger a targeted re-sync for just that one person.
+- `upsert_member_entry()` extracted as shared logic between batch sync and single-person sync, so both apply identical filtering/categorization.
+
+### Changed
+- `executeSearchDirectoryIndividuals()` MSQL query now selects `LocalID` (previously omitted, silently leaving `local_id` unpopulated on every sync).
+- `Provider::getMemberID()` now returns `local_id` instead of a WordPress user ID.
+- `Provider::getProfileLink()` no longer accepts an `$isPrivate` parameter or appends `?private=1` — directory is public-only.
+
+### Removed
+- `CMSPlugin` and WordPress-user-account (`mem_key`) dependency from `Provider::getProfileLink()` and `getMemberID()`.
 
 ## [1.3.7] - 2026-06-19
 ### Fixed

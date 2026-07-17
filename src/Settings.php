@@ -107,6 +107,33 @@ class Settings
                 <p id="ms-sync-status">Starting sync...</p>
             </div>
 
+            <button id="ms-sync-start" class="button button-secondary">Sync Now</button>
+
+            <!-- Individual member lookup / single-person sync -->
+            <hr>
+            <h2>Look Up / Sync an Individual Member</h2>
+            <p>
+                Enter a MemberSuite GUID (e.g. <code>05885462-0006-c539-e5cf-0b497b8f7580</code>) to view their
+                current locally-cached fields, or trigger a fresh sync for just that one person.
+            </p>
+
+            <table class="form-table">
+                <tr>
+                    <th><label for="ms-lookup-guid">MemberSuite GUID</label></th>
+                    <td>
+                        <input type="text" id="ms-lookup-guid" class="regular-text" placeholder="05885462-0006-..." />
+                        <button id="ms-lookup-btn" class="button button-secondary">Look Up</button>
+                        <button id="ms-sync-single-btn" class="button button-primary">Sync This Person</button>
+                    </td>
+                </tr>
+            </table>
+
+            <div id="ms-lookup-status" style="margin-top:10px;"></div>
+
+            <table id="ms-lookup-result" class="widefat striped" style="display:none; max-width:800px; margin-top:10px;">
+                <tbody></tbody>
+            </table>
+
             <script>
                 jQuery(function($) {
                     $('#ms-sync-start').on('click', function(e) {
@@ -148,10 +175,88 @@ class Settings
                             }
                         });
                     }
+
+                    // Renders a local-table row (or a synced row echoed
+                    // back from the single-sync endpoint) as a simple
+                    // field/value table.
+                    function renderLookupRow(row) {
+                        var $tbody = $('#ms-lookup-result tbody');
+                        $tbody.empty();
+
+                        $.each(row, function(field, value) {
+                            var displayValue = (value === null || value === '') ? '<em>(empty)</em>' : value;
+                            $tbody.append(
+                                '<tr><th style="width:200px;">' + field + '</th><td>' + displayValue + '</td></tr>'
+                            );
+                        });
+
+                        $('#ms-lookup-result').show();
+                    }
+
+                    $('#ms-lookup-btn').on('click', function(e) {
+                        e.preventDefault();
+                        var guid = $('#ms-lookup-guid').val().trim();
+
+                        if (!guid) {
+                            $('#ms-lookup-status').text('Please enter a GUID.');
+                            return;
+                        }
+
+                        $('#ms-lookup-status').text('Looking up...');
+                        $('#ms-lookup-result').hide();
+
+                        $.post(ajaxurl, {
+                            action: 'ms_lookup_member',
+                            nonce: '<?php echo wp_create_nonce("ms_lookup_member"); ?>',
+                            guid: guid
+                        }, function(response) {
+                            if (!response.success) {
+                                $('#ms-lookup-status').text(response.data.message || 'Lookup failed.');
+                                return;
+                            }
+
+                            $('#ms-lookup-status').text('Found local record:');
+                            renderLookupRow(response.data.row);
+                        }).fail(function() {
+                            $('#ms-lookup-status').text('Lookup request failed.');
+                        });
+                    });
+
+                    $('#ms-sync-single-btn').on('click', function(e) {
+                        e.preventDefault();
+                        var guid = $('#ms-lookup-guid').val().trim();
+
+                        if (!guid) {
+                            $('#ms-lookup-status').text('Please enter a GUID.');
+                            return;
+                        }
+
+                        $('#ms-lookup-status').text('Syncing from MemberSuite...');
+                        $('#ms-lookup-result').hide();
+
+                        $.post(ajaxurl, {
+                            action: 'ms_sync_single_member',
+                            nonce: '<?php echo wp_create_nonce("ms_sync_single_member"); ?>',
+                            guid: guid
+                        }, function(response) {
+                            if (!response.success) {
+                                $('#ms-lookup-status').text(response.data.message || 'Sync failed.');
+                                return;
+                            }
+
+                            if (response.data.status === 'skipped_test') {
+                                $('#ms-lookup-status').text(response.data.message);
+                                return;
+                            }
+
+                            $('#ms-lookup-status').text(response.data.message);
+                            renderLookupRow(response.data.row);
+                        }).fail(function() {
+                            $('#ms-lookup-status').text('Sync request failed.');
+                        });
+                    });
                 });
             </script>
-
-            <button id="ms-sync-start" class="button button-secondary">Sync Now</button>
 
         </div>
 
